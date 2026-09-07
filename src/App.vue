@@ -15,10 +15,10 @@ const activeNotes = ref([]);
 const currentFileName = ref("Canon in D (Demo)");
 const errorMessage = ref("");
 
-// Modo por defecto inicializado SIEMPRE en Horizontal
+// Modo por defecto inicializado en Horizontal
 const viewMode = ref("horizontal");
 
-const paypalUrl = "https://paypal.me/cruizl91";
+const paypalUrl = "https://paypal.me/tu_usuario_paypal";
 
 const updateScrollOffset = () => {
   if (api && headerElement.value && alphaTabContainer.value) {
@@ -36,8 +36,8 @@ onMounted(() => {
       player: {
         enablePlayer: true,
         enableCursor: true,
-        soundFont:
-          "https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.8.4/dist/soundfont/sonivox.sf2",
+        // Usamos la SoundFont oficial embebida/estable de AlphaTab via JsDelivr versión fija
+        soundFont: "https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.3.0/dist/soundfont/sonivox.sf2",
       },
       display: {
         staveProfile: "ScoreTab",
@@ -46,10 +46,17 @@ onMounted(() => {
 
     api = markRaw(alphaInstance);
 
+    // Eventos de estado de AlphaTab
     api.scoreLoaded.on(() => {
       isReady.value = true;
       errorMessage.value = "";
       updateScrollOffset();
+    });
+
+    api.error.on((err) => {
+      console.error("AlphaTab Error:", err);
+      errorMessage.value = "Error al procesar la tablatura o el sintetizador de audio.";
+      isReady.value = true;
     });
 
     api.playedBeatChanged.on((beat) => {
@@ -71,6 +78,7 @@ onMounted(() => {
       }
     });
   } catch (err) {
+    console.error("Error al montar AlphaTab:", err);
     errorMessage.value = "Error al inicializar el reproductor.";
   }
 
@@ -91,6 +99,7 @@ const updateNotesFromBeat = (beat) => {
   activeNotes.value = notesList;
 };
 
+// Carga directa y segura de archivos locales de guitarra (.gp, .gp5, .gpx, etc.)
 const handleFileUpload = (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -102,18 +111,19 @@ const handleFileUpload = (event) => {
   const reader = new FileReader();
 
   reader.onerror = () => {
-    errorMessage.value = "Error al leer el archivo.";
+    errorMessage.value = "Error al abrir el archivo local.";
     isReady.value = true;
   };
 
   reader.onload = (e) => {
     try {
       const arrayBuffer = e.target.result;
-      if (api) {
+      if (api && arrayBuffer) {
         api.load(new Uint8Array(arrayBuffer));
       }
     } catch (err) {
-      errorMessage.value = "Formato no compatible o archivo dañado.";
+      console.error("Error al cargar archivo en AlphaTab:", err);
+      errorMessage.value = "Formato de tablatura no compatible o archivo dañado.";
       isReady.value = true;
     }
   };
@@ -122,7 +132,9 @@ const handleFileUpload = (event) => {
 };
 
 const triggerFileInput = () => {
-  fileInput.value.click();
+  if (fileInput.value) {
+    fileInput.value.click();
+  }
 };
 
 const changeViewMode = async (mode) => {
@@ -148,12 +160,13 @@ onUnmounted(() => {
   }
 });
 
+// Activa el motor de audio y conmuta la reproducción
 const togglePlay = () => {
   if (api) {
-    if (api.player && api.player.output) {
-      api.player.output.activate();
+    // Activar el contexto de audio WebAudio del navegador
+    if (api.player) {
+      api.player.playPause();
     }
-    api.playPause();
   }
 };
 
@@ -168,355 +181,196 @@ const changeSpeed = (e) => {
 
 <template>
   <div class="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col">
+    
     <!-- HEADER Y REPRODUCTOR RESPONSIVE FIJO -->
-    <header
-      ref="headerElement"
-      class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2.5 sm:py-3 shadow-2xl"
-    >
+    <header ref="headerElement" class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2.5 sm:py-3 shadow-2xl">
       <div class="max-w-7xl mx-auto flex flex-col items-center gap-2 sm:gap-3">
+        
         <!-- Título con Logo de Clavijero 3L/3R, Modos y Donaciones -->
-        <div
-          class="w-full flex flex-wrap justify-between items-center gap-2 border-b border-slate-800/80 pb-2"
-        >
-          <!-- BRANDING & LOGO (Clavijero 3L 3R) -->
+        <div class="w-full flex flex-wrap justify-between items-center gap-2 border-b border-slate-800/80 pb-2">
+          
+          <!-- BRANDING & LOGO -->
           <div class="flex items-center gap-2.5">
-            <div
-              class="p-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-inner flex items-center justify-center"
-            >
-              <svg
-                class="w-7 h-7 sm:w-8 sm:h-8"
-                viewBox="0 0 64 64"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <!-- Silueta del Clavijero estilo 3L + 3R -->
-                <path
-                  d="M22 60L22 46C22 44 20 40 18 36L14 26C12 22 14 10 24 8L32 6L40 8C50 10 52 22 50 26L46 36C44 40 42 44 42 46L42 60"
-                  stroke="#38BDF8"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <!-- Cejuela (Nut) -->
-                <rect
-                  x="20"
-                  y="52"
-                  width="24"
-                  height="3"
-                  rx="1.5"
-                  fill="#E2E8F0"
-                />
-                <!-- Cuerdas saliendo hacia arriba -->
-                <line
-                  x1="24"
-                  y1="52"
-                  x2="24"
-                  y2="28"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <line
-                  x1="27"
-                  y1="52"
-                  x2="27"
-                  y2="20"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <line
-                  x1="30"
-                  y1="52"
-                  x2="30"
-                  y2="12"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <line
-                  x1="34"
-                  y1="52"
-                  x2="34"
-                  y2="12"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <line
-                  x1="37"
-                  y1="52"
-                  x2="37"
-                  y2="20"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <line
-                  x1="40"
-                  y1="52"
-                  x2="40"
-                  y2="28"
-                  stroke="#94A3B8"
-                  stroke-width="1"
-                />
-                <!-- Clavijas Izquierdas (3L) -->
-                <circle cx="10" cy="18" r="3" fill="#10B981" />
-                <line
-                  x1="13"
-                  y1="18"
-                  x2="19"
-                  y2="18"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
-                <circle cx="8" cy="28" r="3" fill="#10B981" />
-                <line
-                  x1="11"
-                  y1="28"
-                  x2="18"
-                  y2="28"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
-                <circle cx="10" cy="38" r="3" fill="#10B981" />
-                <line
-                  x1="13"
-                  y1="38"
-                  x2="17"
-                  y2="38"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
-                <!-- Clavijas Derechas (3R) -->
-                <circle cx="54" cy="18" r="3" fill="#10B981" />
-                <line
-                  x1="51"
-                  y1="18"
-                  x2="45"
-                  y2="18"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
-                <circle cx="56" cy="28" r="3" fill="#10B981" />
-                <line
-                  x1="53"
-                  y1="28"
-                  x2="46"
-                  y2="28"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
-                <circle cx="54" cy="38" r="3" fill="#10B981" />
-                <line
-                  x1="51"
-                  y1="38"
-                  x2="47"
-                  y2="38"
-                  stroke="#34D399"
-                  stroke-width="2"
-                />
+            <div class="p-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-inner flex items-center justify-center">
+              <svg class="w-7 h-7 sm:w-8 sm:h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 60L22 46C22 44 20 40 18 36L14 26C12 22 14 10 24 8L32 6L40 8C50 10 52 22 50 26L46 36C44 40 42 44 42 46L42 60" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="20" y="52" width="24" height="3" rx="1.5" fill="#E2E8F0"/>
+                <line x1="24" y1="52" x2="24" y2="28" stroke="#94A3B8" stroke-width="1"/>
+                <line x1="27" y1="52" x2="27" y2="20" stroke="#94A3B8" stroke-width="1"/>
+                <line x1="30" y1="52" x2="30" y2="12" stroke="#94A3B8" stroke-width="1"/>
+                <line x1="34" y1="52" x2="34" y2="12" stroke="#94A3B8" stroke-width="1"/>
+                <line x1="37" y1="52" x2="37" y2="20" stroke="#94A3B8" stroke-width="1"/>
+                <line x1="40" y1="52" x2="40" y2="28" stroke="#94A3B8" stroke-width="1"/>
+                <circle cx="10" cy="18" r="3" fill="#10B981"/>
+                <line x1="13" y1="18" x2="19" y2="18" stroke="#34D399" stroke-width="2"/>
+                <circle cx="8" cy="28" r="3" fill="#10B981"/>
+                <line x1="11" y1="28" x2="18" y2="28" stroke="#34D399" stroke-width="2"/>
+                <circle cx="10" cy="38" r="3" fill="#10B981"/>
+                <line x1="13" y1="38" x2="17" y2="38" stroke="#34D399" stroke-width="2"/>
+                <circle cx="54" cy="18" r="3" fill="#10B981"/>
+                <line x1="51" y1="18" x2="45" y2="18" stroke="#34D399" stroke-width="2"/>
+                <circle cx="56" cy="28" r="3" fill="#10B981"/>
+                <line x1="53" y1="28" x2="46" y2="28" stroke="#34D399" stroke-width="2"/>
+                <circle cx="54" cy="38" r="3" fill="#10B981"/>
+                <line x1="51" y1="38" x2="47" y2="38" stroke="#34D399" stroke-width="2"/>
               </svg>
             </div>
             <div>
-              <h1
-                class="text-base sm:text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent"
-              >
+              <h1 class="text-base sm:text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
                 TabEngine
               </h1>
-              <p class="text-[10px] sm:text-xs text-slate-400">
-                Práctica e interacción dinámica de tablaturas
-              </p>
+              <p class="text-[10px] sm:text-xs text-slate-400">Práctica e interacción dinámica de tablaturas</p>
             </div>
           </div>
 
           <div class="flex items-center gap-1.5 sm:gap-2">
             <!-- Selector de Vistas -->
-            <div
-              class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px] sm:text-xs"
-            >
-              <button
+            <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px] sm:text-xs">
+              <button 
                 @click="changeViewMode('horizontal')"
                 class="px-2 py-1 rounded transition cursor-pointer font-medium"
-                :class="
-                  viewMode === 'horizontal'
-                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                "
+                :class="viewMode === 'horizontal' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'"
               >
                 Horizontal
               </button>
-              <button
+              <button 
                 @click="changeViewMode('split')"
                 class="px-2 py-1 rounded transition cursor-pointer font-medium"
-                :class="
-                  viewMode === 'split'
-                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                "
+                :class="viewMode === 'split' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'"
               >
                 Split (Vertical)
               </button>
-              <button
+              <button 
                 @click="changeViewMode('tab-only')"
                 class="px-2 py-1 rounded transition cursor-pointer font-medium"
-                :class="
-                  viewMode === 'tab-only'
-                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                "
+                :class="viewMode === 'tab-only' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'"
               >
                 Solo Tab
               </button>
             </div>
 
             <!-- Botón PayPal -->
-            <a
-              :href="paypalUrl"
-              target="_blank"
+            <a 
+              :href="paypalUrl" 
+              target="_blank" 
               rel="noopener noreferrer"
               class="px-2.5 py-1 sm:py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] sm:text-xs font-semibold flex items-center gap-1 transition"
             >
-              <span>☕ Donar PayPal</span>
+              <span>☕ Donar</span>
             </a>
           </div>
         </div>
 
-        <!-- Mástil Superior Horizontal (Visible por defecto) -->
+        <!-- Mástil Superior Horizontal -->
         <div v-if="viewMode === 'horizontal'" class="w-full">
           <Fretboard :active-notes="activeNotes" orientation="horizontal" />
         </div>
 
         <!-- Alerta de Error -->
-        <div
-          v-if="errorMessage"
-          class="w-full max-w-5xl bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] px-3 py-1.5 rounded-lg text-center font-medium"
-        >
+        <div v-if="errorMessage" class="w-full max-w-5xl bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] px-3 py-1.5 rounded-lg text-center font-medium">
           ⚠️ {{ errorMessage }}
         </div>
 
         <!-- Barra del Reproductor Compacta -->
-        <div
-          class="bg-slate-800/90 px-3 sm:px-4 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2.5 border border-slate-700 w-full max-w-5xl shadow-md"
-        >
+        <div class="bg-slate-800/90 px-3 sm:px-4 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2.5 border border-slate-700 w-full max-w-5xl shadow-md">
+          
           <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button
+            <button 
               @click="togglePlay"
               :disabled="!isReady"
               class="px-3.5 py-1.5 sm:py-2 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow"
-              :class="
-                isPlaying
-                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
-                  : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'
-              "
+              :class="isPlaying ? 'bg-amber-500 hover:bg-amber-600 text-slate-950' : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950'"
             >
               <span>{{ isPlaying ? "⏸️ Pausar" : "▶️ Reproducir" }}</span>
             </button>
 
-            <input
-              type="file"
-              ref="fileInput"
-              @change="handleFileUpload"
-              accept=".gp,.gp3,.gp4,.gp5,.gpx,.xml,.mid"
-              class="hidden"
+            <input 
+              type="file" 
+              ref="fileInput" 
+              @change="handleFileUpload" 
+              accept=".gp,.gp3,.gp4,.gp5,.gpx,.xml,.mid" 
+              class="hidden" 
             />
-            <button
+            <button 
               @click="triggerFileInput"
               class="px-2.5 py-1.5 sm:py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 text-xs font-semibold text-slate-200 border border-slate-600 transition cursor-pointer"
             >
               <span>📂 Cargar</span>
             </button>
 
-            <div
-              class="flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50"
-            >
+            <div class="flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
               <span class="text-[10px] text-slate-400">📄</span>
-              <span
-                class="text-[11px] text-emerald-400 font-mono font-medium max-w-[100px] sm:max-w-[160px] truncate"
-              >
+              <span class="text-[11px] text-emerald-400 font-mono font-medium max-w-[100px] sm:max-w-[160px] truncate">
                 {{ currentFileName }}
               </span>
             </div>
           </div>
 
           <div class="flex items-center gap-2 sm:gap-3">
-            <span
+            <span 
               class="text-[10px] sm:text-xs px-2.5 py-0.5 sm:py-1 rounded-full font-mono border"
-              :class="
-                isReady
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-              "
+              :class="isReady ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'"
             >
               {{ isReady ? "● Listo" : "⏳ Cargando..." }}
             </span>
 
-            <div
-              class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/50"
-            >
+            <div class="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700/50">
               <label class="text-[11px] text-slate-300 font-medium">Vel:</label>
-              <input
-                type="range"
-                min="0.25"
-                max="1.5"
-                step="0.05"
-                value="1"
+              <input 
+                type="range" 
+                min="0.25" 
+                max="1.5" 
+                step="0.05" 
+                value="1" 
                 @input="changeSpeed"
                 class="w-16 sm:w-24 accent-emerald-500 cursor-pointer"
               />
-              <span
-                class="text-[11px] font-mono text-emerald-400 font-bold w-9 text-right"
-              >
+              <span class="text-[11px] font-mono text-emerald-400 font-bold w-9 text-right">
                 {{ playbackSpeed }}%
               </span>
             </div>
           </div>
+
         </div>
+
       </div>
     </header>
 
     <!-- CUERPO PRINCIPAL -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 relative z-10">
+      
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+        
         <!-- Mástil Vertical Lateral -->
-        <aside
-          v-show="viewMode === 'split'"
+        <aside 
+          v-show="viewMode === 'split'" 
           class="w-full lg:col-span-3 sticky top-36 sm:top-44"
         >
           <Fretboard :active-notes="activeNotes" orientation="vertical" />
         </aside>
 
         <!-- Contenedor de Tablatura -->
-        <section
+        <section 
           v-show="viewMode !== 'split' || $windowWidth >= 1024"
           class="bg-white rounded-xl shadow-2xl p-3 sm:p-6 text-slate-900 min-h-[500px] sm:min-h-[600px] overflow-hidden relative transition-all duration-200 w-full"
-          :class="
-            viewMode === 'split'
-              ? 'hidden lg:block lg:col-span-9'
-              : 'lg:col-span-12'
-          "
+          :class="viewMode === 'split' ? 'hidden lg:block lg:col-span-9' : 'lg:col-span-12'"
         >
-          <div
-            ref="alphaTabContainer"
-            class="overflow-x-auto min-w-full touch-pan-x"
-          ></div>
+          <div ref="alphaTabContainer" class="overflow-x-auto min-w-full touch-pan-x"></div>
         </section>
+
       </div>
+
     </main>
 
     <!-- FOOTER -->
-    <footer
-      class="bg-slate-950 border-t border-slate-800/80 py-4 sm:py-6 px-4 text-center text-[11px] text-slate-500 space-y-1"
-    >
+    <footer class="bg-slate-950 border-t border-slate-800/80 py-4 sm:py-6 px-4 text-center text-[11px] text-slate-500 space-y-1">
+      <p>TabEngine — Plataforma interactiva de práctica e interpretación de guitarra.</p>
       <p>
-        TabEngine — Plataforma interactiva de práctica e interpretación de
-        guitarra.
-      </p>
-      <p>
-        Apoyo y colaboraciones en
-        <a
-          :href="paypalUrl"
-          target="_blank"
-          class="text-amber-400 underline font-medium hover:text-amber-300"
-          >PayPal</a
-        >.
+        Apoyo y colaboraciones en 
+        <a :href="paypalUrl" target="_blank" class="text-amber-400 underline font-medium hover:text-amber-300">PayPal</a>.
       </p>
     </footer>
+
   </div>
 </template>
 
@@ -528,10 +382,10 @@ export default {
     };
   },
   mounted() {
-    window.addEventListener("resize", this.onResize);
+    window.addEventListener('resize', this.onResize);
   },
   beforeUnmount() {
-    window.removeEventListener("resize", this.onResize);
+    window.removeEventListener('resize', this.onResize);
   },
   methods: {
     onResize() {
