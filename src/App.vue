@@ -12,12 +12,10 @@ const isPlaying = ref(false);
 const playbackSpeed = ref(100);
 const isReady = ref(false);
 const activeNotes = ref([]);
-const currentFileName = ref("Canon in D (Demo)");
+const currentFileName = ref("Esperando archivo...");
 const errorMessage = ref("");
 
-// Modo por defecto inicializado en Horizontal
 const viewMode = ref("horizontal");
-
 const paypalUrl = "https://paypal.me/tu_usuario_paypal";
 
 const updateScrollOffset = () => {
@@ -31,12 +29,14 @@ const updateScrollOffset = () => {
 
 onMounted(() => {
   try {
+    if (!alphaTabContainer.value) return;
+
+    // Inicialización del motor de AlphaTab
     const alphaInstance = new AlphaTabApi(alphaTabContainer.value, {
       file: "https://www.alphatab.net/files/canon.gp",
       player: {
         enablePlayer: true,
         enableCursor: true,
-        // Usamos la SoundFont oficial embebida/estable de AlphaTab via JsDelivr versión fija
         soundFont: "https://cdn.jsdelivr.net/npm/@coderline/alphatab@1.3.0/dist/soundfont/sonivox.sf2",
       },
       display: {
@@ -46,16 +46,16 @@ onMounted(() => {
 
     api = markRaw(alphaInstance);
 
-    // Eventos de estado de AlphaTab
     api.scoreLoaded.on(() => {
       isReady.value = true;
       errorMessage.value = "";
+      currentFileName.value = "Canon in D (Demo)";
       updateScrollOffset();
     });
 
     api.error.on((err) => {
       console.error("AlphaTab Error:", err);
-      errorMessage.value = "Error al procesar la tablatura o el sintetizador de audio.";
+      errorMessage.value = "Presiona '📂 Cargar' para seleccionar una tablatura de tu equipo.";
       isReady.value = true;
     });
 
@@ -78,8 +78,9 @@ onMounted(() => {
       }
     });
   } catch (err) {
-    console.error("Error al montar AlphaTab:", err);
-    errorMessage.value = "Error al inicializar el reproductor.";
+    console.error("Error crítico al inicializar AlphaTab:", err);
+    errorMessage.value = "No se pudo iniciar el motor visual. Intenta recargar la página.";
+    isReady.value = true;
   }
 
   window.addEventListener("resize", updateScrollOffset);
@@ -99,7 +100,6 @@ const updateNotesFromBeat = (beat) => {
   activeNotes.value = notesList;
 };
 
-// Carga directa y segura de archivos locales de guitarra (.gp, .gp5, .gpx, etc.)
 const handleFileUpload = (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -122,8 +122,8 @@ const handleFileUpload = (event) => {
         api.load(new Uint8Array(arrayBuffer));
       }
     } catch (err) {
-      console.error("Error al cargar archivo en AlphaTab:", err);
-      errorMessage.value = "Formato de tablatura no compatible o archivo dañado.";
+      console.error("Error al cargar archivo:", err);
+      errorMessage.value = "Formato no compatible o archivo dañado.";
       isReady.value = true;
     }
   };
@@ -160,10 +160,8 @@ onUnmounted(() => {
   }
 });
 
-// Activa el motor de audio y conmuta la reproducción
 const togglePlay = () => {
   if (api) {
-    // Activar el contexto de audio WebAudio del navegador
     if (api.player) {
       api.player.playPause();
     }
@@ -182,14 +180,12 @@ const changeSpeed = (e) => {
 <template>
   <div class="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col">
     
-    <!-- HEADER Y REPRODUCTOR RESPONSIVE FIJO -->
+    <!-- HEADER -->
     <header ref="headerElement" class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 py-2.5 sm:py-3 shadow-2xl">
       <div class="max-w-7xl mx-auto flex flex-col items-center gap-2 sm:gap-3">
         
-        <!-- Título con Logo de Clavijero 3L/3R, Modos y Donaciones -->
         <div class="w-full flex flex-wrap justify-between items-center gap-2 border-b border-slate-800/80 pb-2">
           
-          <!-- BRANDING & LOGO -->
           <div class="flex items-center gap-2.5">
             <div class="p-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-inner flex items-center justify-center">
               <svg class="w-7 h-7 sm:w-8 sm:h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -224,7 +220,6 @@ const changeSpeed = (e) => {
           </div>
 
           <div class="flex items-center gap-1.5 sm:gap-2">
-            <!-- Selector de Vistas -->
             <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px] sm:text-xs">
               <button 
                 @click="changeViewMode('horizontal')"
@@ -249,7 +244,6 @@ const changeSpeed = (e) => {
               </button>
             </div>
 
-            <!-- Botón PayPal -->
             <a 
               :href="paypalUrl" 
               target="_blank" 
@@ -261,17 +255,14 @@ const changeSpeed = (e) => {
           </div>
         </div>
 
-        <!-- Mástil Superior Horizontal -->
         <div v-if="viewMode === 'horizontal'" class="w-full">
           <Fretboard :active-notes="activeNotes" orientation="horizontal" />
         </div>
 
-        <!-- Alerta de Error -->
-        <div v-if="errorMessage" class="w-full max-w-5xl bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] px-3 py-1.5 rounded-lg text-center font-medium">
-          ⚠️ {{ errorMessage }}
+        <div v-if="errorMessage" class="w-full max-w-5xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] px-3 py-1.5 rounded-lg text-center font-medium">
+          ℹ️ {{ errorMessage }}
         </div>
 
-        <!-- Barra del Reproductor Compacta -->
         <div class="bg-slate-800/90 px-3 sm:px-4 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2.5 border border-slate-700 w-full max-w-5xl shadow-md">
           
           <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -336,12 +327,11 @@ const changeSpeed = (e) => {
       </div>
     </header>
 
-    <!-- CUERPO PRINCIPAL -->
+    <!-- CUERPO -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 relative z-10">
       
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
         
-        <!-- Mástil Vertical Lateral -->
         <aside 
           v-show="viewMode === 'split'" 
           class="w-full lg:col-span-3 sticky top-36 sm:top-44"
@@ -349,7 +339,6 @@ const changeSpeed = (e) => {
           <Fretboard :active-notes="activeNotes" orientation="vertical" />
         </aside>
 
-        <!-- Contenedor de Tablatura -->
         <section 
           v-show="viewMode !== 'split' || $windowWidth >= 1024"
           class="bg-white rounded-xl shadow-2xl p-3 sm:p-6 text-slate-900 min-h-[500px] sm:min-h-[600px] overflow-hidden relative transition-all duration-200 w-full"
